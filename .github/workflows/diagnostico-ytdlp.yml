@@ -1,18 +1,26 @@
-name: Diagnostico HLS La 7
+name: Verificar renovacion La 7
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *'
+
+permissions:
+  contents: read
 
 jobs:
   diagnostico:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Comprobar HLS y calidades
+      - name: Comprobar token y HLS
         shell: bash
         run: |
           python - <<'PY'
           import re
+          import json
+          import base64
+          import datetime
           import urllib.request
           from urllib.parse import urljoin, urlsplit
 
@@ -32,43 +40,62 @@ jobs:
                   )
 
           estado, html = obtener(pagina)
-          print("HTML:", estado)
+          print("Pagina oficial:", estado)
 
           match = re.search(
               r"""var\s+m3u8\s*=\s*['"]([^'"]+)['"]""",
               html
           )
           if not match:
-              raise SystemExit("No se encontro la URL HLS")
+              raise SystemExit("URL HLS no encontrada")
 
           master = match.group(1)
-          if urlsplit(master).hostname != "la7live.flumotion.cloud":
-              raise SystemExit("Servidor inesperado")
+          partes = urlsplit(master)
+          if partes.hostname != "la7live.flumotion.cloud":
+              raise SystemExit("Servidor HLS inesperado")
+
+          segmentos = partes.path.split("/")
+          indice = segmentos.index("fmt_token")
+          payload = segmentos[indice + 2]
+
+          payload += "=" * (-len(payload) % 4)
+          datos = json.loads(
+              base64.urlsafe_b64decode(payload)
+          )
+
+          caducidad = int(datos["expire"])
+          fecha = datetime.datetime.fromtimestamp(
+              caducidad, datetime.timezone.utc
+          )
+
+          ahora = datetime.datetime.now(
+              datetime.timezone.utc
+          )
+
+          print("Caducidad UTC:", fecha.isoformat())
+          print("Token vigente:", caducidad > ahora.timestamp())
+          print("Token posterior al anterior:",
+                caducidad > 1795421743)
 
           estado, lista = obtener(master)
-          print("Master HLS:", estado)
-
           if not lista.startswith("#EXTM3U"):
-              raise SystemExit("Respuesta HLS no valida")
+              raise SystemExit("Master HLS invalido")
+          print("Master HLS:", estado)
 
           variantes = [
               linea.strip()
               for linea in lista.splitlines()
-              if linea.strip()
-              and not linea.startswith("#")
+              if linea.strip() and not linea.startswith("#")
           ]
-
-          print("Variantes encontradas:", len(variantes))
 
           for i, variante in enumerate(variantes, 1):
               url = urljoin(master, variante)
-              if urlsplit(url).hostname != "la7live.flumotion.cloud":
-                  raise SystemExit("Servidor de variante inesperado")
+              if urlsplit(url).hostname != partes.hostname:
+                  raise SystemExit("Servidor inesperado")
 
               estado, contenido = obtener(url)
               if not contenido.startswith("#EXTM3U"):
-                  raise SystemExit("Variante HLS no valida")
-
+                  raise SystemExit("Variante HLS invalida")
               print(f"Variante {i}: HTTP {estado}")
 
           print("DIAGNOSTICO COMPLETADO")
