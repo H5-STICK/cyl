@@ -1,0 +1,23 @@
+
+name: Diagnostico yt-dlp CyLTV
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Instalar yt-dlp
+        run: python -m pip install --upgrade yt-dlp
+
+      - name: Analizar web oficial
+        run: |
+          yt-dlp \
+            --ignore-config \
+            --no-cache-dir \
+            --simulate \
+            --list-formats \
+            --verbose \
+            "https://www.cyltv.es/"
