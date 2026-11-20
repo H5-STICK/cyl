@@ -12,7 +12,7 @@ jobs:
       - name: Instalar yt-dlp
         run: python -m pip install --upgrade yt-dlp
 
-      - name: Analizar web oficial
+      - name: Analizar reproductor La 7
         run: |
           yt-dlp \
             --ignore-config \
@@ -20,4 +20,4 @@ jobs:
             --simulate \
             --list-formats \
             --verbose \
-            "https://www.cyltv.es/"
+            "https://www.cyltvplay.es/player/d3badef6-d229-4a27-9609-03df3d17ca3/la7/la7"
